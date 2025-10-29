@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reproductor de Fotograma a Fotograma</title>
+    <!-- Carrega Tailwind CSS per a l'estil -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuració de la font Inter */
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="bg-white shadow-2xl rounded-xl p-6 w-full max-w-2xl">
+        <h1 class="text-3xl font-extrabold text-gray-800 mb-6 text-center">
+            Reproductor Fotograma a Fotograma
+        </h1>
+
+        <!-- Contenidor de Selecció de Fitxer -->
+        <div class="mb-6">
+            <label for="fileInput" class="block text-sm font-medium text-gray-700 mb-2">
+                Selecciona un Fitxer de Vídeo Local:
+            </label>
+            <input type="file"
+                   id="fileInput"
+                   accept="video/*"
+                   class="w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-full file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-indigo-50 file:text-indigo-700
+                          hover:file:bg-indigo-100 cursor-pointer" />
+        </div>
+
+        <!-- Contenidor del Vídeo -->
+        <div class="mb-6 rounded-lg overflow-hidden border-4 border-indigo-600">
+            <!--
+                IMPORTANT: La font del vídeo es carrega dinàmicament des del fitxer local seleccionat.
+            -->
+            <video id="videoPlayer"
+                   class="w-full h-auto bg-black"
+                   preload="metadata"
+                   controls="false"
+                   crossorigin="anonymous">
+                El teu navegador no suporta l'etiqueta de vídeo.
+            </video>
+        </div>
+
+        <!-- Visualització de Temps i Fotograma Actual -->
+        <div class="flex justify-around items-start text-center mb-6 border-b pb-4">
+            <!-- Temps Actual -->
+            <div class="w-1/2">
+                <p class="text-lg font-medium text-gray-700">Temps actual:</p>
+                <p id="timeDisplay" class="text-2xl font-bold text-indigo-700 mt-1">00:00.000</p>
+            </div>
+            <!-- Fotograma Actual -->
+            <div class="w-1/2 border-l border-gray-200">
+                <p class="text-lg font-medium text-gray-700">Fotograma actual (30 FPS):</p>
+                <p id="frameDisplay" class="text-2xl font-bold text-pink-700 mt-1">0</p>
+            </div>
+        </div>
+
+        <!-- Controls de Fotograma a Fotograma -->
+        <div class="flex justify-center space-x-4 mb-4">
+            <button id="prevFrame"
+                    class="flex items-center px-6 py-3 bg-indigo-500 text-white font-semibold rounded-full shadow-lg hover:bg-indigo-600 transition duration-150 transform hover:scale-105 disabled:opacity-30"
+                    disabled>
+                <span class="text-2xl mr-2">«</span> Fotograma Anterior
+            </button>
+
+            <button id="nextFrame"
+                    class="flex items-center px-6 py-3 bg-indigo-500 text-white font-semibold rounded-full shadow-lg hover:bg-indigo-600 transition duration-150 transform hover:scale-105 disabled:opacity-30"
+                    disabled>
+                Fotograma Següent <span class="text-2xl ml-2">»</span>
+            </button>
+        </div>
+        
+        <!-- Nou Botó de Captura -->
+        <div class="flex justify-center">
+            <button id="captureButton"
+                    class="flex items-center px-6 py-3 bg-green-600 text-white font-semibold rounded-full shadow-lg hover:bg-green-700 transition duration-150 transform hover:scale-105 disabled:opacity-30"
+                    disabled>
+                📷 Captura i Desa PNG
+            </button>
+        </div>
+
+        <p class="text-sm text-gray-500 mt-4 text-center">
+            Nota: La precisió del fotograma depèn del FPS del vídeo i del navegador. Per defecte, s'assumeix 30 FPS.
+        </p>
+
+    </div>
+
+    <script>
+        // Referències als elements del DOM
+        const video = document.getElementById('videoPlayer');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const frameDisplay = document.getElementById('frameDisplay');
+        const prevFrameButton = document.getElementById('prevFrame');
+        const nextFrameButton = document.getElementById('nextFrame');
+        const fileInput = document.getElementById('fileInput');
+        const captureButton = document.getElementById('captureButton'); // Nova referència
+
+        // Configuració: 30 fotogrames per segon (FPS) és l'estàndard.
+        const FRAME_RATE = 30;
+        const FRAME_STEP = 1 / FRAME_RATE; // Temps per fotograma en segons
+
+        /**
+         * Formata els segons en un format de temps (MM:SS.ms)
+         * @param {number} time - Temps en segons.
+         */
+        function formatTime(time) {
+            if (time < 0) time = 0;
+
+            const minutes = Math.floor(time / 60);
+            const seconds = Math.floor(time % 60);
+            const milliseconds = Math.round((time - Math.floor(time)) * 1000);
+
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+        }
+
+        /**
+         * Actualitza la visualització del temps actual del vídeo i el fotograma.
+         */
+        function updateTimeDisplay() {
+            const currentTime = video.currentTime;
+            
+            // 1. Actualitza Temps
+            timeDisplay.textContent = formatTime(currentTime);
+            
+            // 2. Actualitza Fotograma (Math.round per obtenir el número de fotograma més proper)
+            const currentFrame = Math.round(currentTime / FRAME_STEP);
+            frameDisplay.textContent = currentFrame;
+
+            // 3. Controla l'estat dels botons (UX millorada)
+            // Deshabilita botó anterior si som al principi
+            prevFrameButton.disabled = currentFrame <= 0;
+            // Deshabilita botó següent si som al final (amb un petit marge de seguretat)
+            nextFrameButton.disabled = currentTime >= (video.duration - FRAME_STEP / 2);
+
+            // 4. Habilita el botó de captura si no està inhabilitat pels altres controls
+            captureButton.disabled = prevFrameButton.disabled && nextFrameButton.disabled;
+        }
+
+        /**
+         * Prepara el vídeo un cop s'han carregat les metadades (durada, etc.).
+         */
+        function setupVideo() {
+            video.pause();
+            video.currentTime = 0;
+            updateTimeDisplay();
+            // Si el vídeo té durada, habilitar els controls
+            if (video.duration > 0) {
+                prevFrameButton.disabled = false;
+                nextFrameButton.disabled = false;
+                captureButton.disabled = false; // Habilita el botó de captura
+            }
+        }
+
+        /**
+         * Avança o retrocedeix el vídeo un sol fotograma.
+         * @param {number} direction - -1 per retrocedir, 1 per avançar.
+         */
+        function stepFrame(direction) {
+            if (video.readyState < 2 || prevFrameButton.disabled) {
+                console.warn("El vídeo no està preparat o no s'ha carregat cap fitxer.");
+                return;
+            }
+
+            let newTime = video.currentTime + (direction * FRAME_STEP);
+
+            // Restringeix el temps
+            if (newTime < 0) {
+                newTime = 0;
+            } else if (newTime > video.duration) {
+                newTime = video.duration;
+            }
+
+            video.currentTime = newTime;
+            video.pause();
+            // L'esdeveniment 'timeupdate' trucarà automàticament a updateTimeDisplay()
+        }
+
+        /**
+         * Captura el fotograma actual del vídeo i el desa com a fitxer PNG.
+         */
+        function captureFrame() {
+            if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+                console.warn("El vídeo no està preparat per a la captura o les dimensions són 0.");
+                return;
+            }
+
+            // 1. Crear un element canvas temporal
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+
+            // 2. Dibuixar el fotograma actual del vídeo al canvas
+            // Dibuixem el fotograma a la mida nativa del vídeo
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // 3. Convertir el contingut del canvas a una URL de dades (PNG)
+            const dataURL = canvas.toDataURL('image/png');
+
+            // 4. Crear un element <a> temporal per forçar la descàrrega
+            const a = document.createElement('a');
+            
+            // Generar un nom de fitxer amb el número de fotograma i la data/hora
+            const date = new Date().toISOString().replace(/[:.]/g, '-');
+            const frameNum = frameDisplay.textContent;
+            a.download = `captura_fotograma_${frameNum}_${date}.png`;
+            a.href = dataURL;
+            
+            // 5. Simular el clic per iniciar la descàrrega
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // --- Gestors d'Esdeveniments ---
+
+        // Gestor per a la selecció de fitxers locals
+        fileInput.addEventListener('change', (event) => {
+            const files = event.target.files;
+            if (files.length > 0) {
+                const videoFile = files[0];
+                const videoURL = URL.createObjectURL(videoFile);
+
+                if (video.src && video.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(video.src);
+                }
+
+                video.src = videoURL;
+            } else {
+                // Neteja l'estat si es cancel·la la selecció
+                video.removeAttribute('src');
+                video.load();
+                prevFrameButton.disabled = true;
+                nextFrameButton.disabled = true;
+                captureButton.disabled = true;
+                timeDisplay.textContent = '00:00.000';
+                frameDisplay.textContent = '0';
+            }
+        });
+
+
+        // Un cop les metadades es carreguen, preparem el reproductor
+        video.addEventListener('loadedmetadata', setupVideo);
+
+        // Després de cada canvi de temps, actualitzem la visualització
+        video.addEventListener('timeupdate', updateTimeDisplay);
+
+        // Assigna la funció de pas de fotograma als botons
+        prevFrameButton.addEventListener('click', () => stepFrame(-1));
+        nextFrameButton.addEventListener('click', () => stepFrame(1));
+
+        // Assigna la funció de captura al nou botó
+        captureButton.addEventListener('click', captureFrame);
+
+        // Funció per permetre el control amb fletxes del teclat
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea' || prevFrameButton.disabled) {
+                return;
+            }
+
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                stepFrame(-1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                stepFrame(1);
+            }
+        });
+
+        // Inicialització final
+        prevFrameButton.disabled = true;
+        nextFrameButton.disabled = true;
+        captureButton.disabled = true;
+        frameDisplay.textContent = '0';
+    </script>
+</body>
+</html>
