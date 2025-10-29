@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor d'animacions</title>
+    <!-- Incloure Tailwind CSS des del CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuració del tema Tailwind i la font Inter */
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+        /* Estils personalitzats per al backdrop del diàleg */
+        dialog::backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(3px);
+        }
+
+        /* Estil per al botó de càrrega */
+        #openDialogButton {
+            transition: all 0.2s;
+        }
+        #openDialogButton:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(66, 153, 225, 0.5); /* blue-500 shadow */
+        }
+
+        /* Estil per l'àrea d'animació */
+        #animationArea {
+            min-height: 250px;
+            max-width: 100%;
+            width: 100%; 
+            /* Afegim transició per canvis de color més suaus */
+            transition: background-color 0.5s ease;
+        }
+
+        #animationImage {
+            max-width: 100%;
+            height: auto;
+            max-height: 400px; /* Limitem l'alçada per a un bon disseny en 2 columnes */
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            object-fit: contain;
+        }
+        
+        /* Estil per al text del nom del fitxer: assegura visibilitat sobre qualsevol fons */
+        #imageFileName {
+            background-color: rgba(255, 255, 255, 0.8); /* Fons blanc amb transparència */
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        /* Estils per a la llista Drag & Drop */
+        .list-item {
+            cursor: grab;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background-color 0.15s, opacity 0.3s;
+        }
+        .list-item:hover {
+            background-color: #f3f4f6;
+        }
+        .list-item.dragging {
+            opacity: 0.4;
+        }
+        /* Estil per als ítems deshabilitats/ocultats */
+        .list-item.disabled {
+            opacity: 0.5;
+            text-decoration: line-through;
+            cursor: default;
+        }
+        .list-item.disabled:hover {
+             background-color: transparent; /* No hover effect when disabled */
+        }
+        .list-item.disabled .drag-handle {
+            cursor: default; /* Remove grab cursor when disabled */
+        }
+        .list-item .drag-handle {
+            cursor: grab;
+        }
+        /* Assegura que la llista ocupi el 100% de la seva columna */
+        #listColumn {
+            overflow-y: auto;
+            max-height: 500px; /* Límit per evitar que creixi massa en pantalles grans */
+        }
+        /* Estil per a la llista quan es fa scroll */
+        #imageList {
+            min-height: 450px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col justify-center items-center min-h-screen font-sans p-4">
+
+    <!-- Contingut principal: Botó per activar la càrrega i Àrea d'Animació/Llista -->
+    <div class="p-6 bg-white rounded-xl shadow-2xl max-w-6xl w-full text-center">
+        <h1 class="text-3xl font-extrabold text-indigo-700 mb-2">Visor d'animacions</h1>
+        <p class="text-gray-600 mb-6">Selecciona una seqüència d'imatges per veure-les i reordenar-les.</p>
+        
+        <button id="openDialogButton" 
+                class="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center mx-auto mb-8">
+            <!-- Icona d'upload (usant SVG) -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M5.5 13a.5.5 0 01.5-.5h2a.5.5 0 010 1H6a.5.5 0 01-.5-.5z" />
+                <path fill-rule="evenodd" d="M15 13V5a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2zM4.5 13V5c0-.36.2-.67.48-.79l.06-.02h9.92c.28.12.48.43.48.79v8c0 .36-.2.67-.48.79l-.06.02H4.5z" clip-rule="evenodd" />
+            </svg>
+            Seleccionar Imatges
+        </button>
+
+        <!-- NOU: Grid Container per al Visor i la Llista (Visible un cop es carrega) -->
+        <div id="mainGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 hidden">
+            
+            <!-- COLUMNA ESQUERRA: Visor i Controls de Reproducció -->
+            <div id="viewerColumn" class="flex flex-col items-center">
+                
+                <!-- Àrea de visualització de l'animació -->
+                <div id="animationArea" class="flex flex-col items-center justify-center p-4 border border-gray-200 bg-gray-100 rounded-xl w-full">
+                    <p id="initialMessage" class="text-gray-500 italic">Aquí es mostrarà l'animació.</p>
+                    <img id="animationImage" class="hidden" alt="Imatge d'Animació">
+                    <p id="imageFileName" class="hidden mt-2 text-sm font-semibold text-gray-700 truncate w-full px-2 text-center">Nom del Fitxer: </p>
+                </div>
+
+                <!-- NOU: Control de Reproducció i Manuals -->
+                <div id="playbackControls" class="mt-4 flex justify-center items-center space-x-4 w-full">
+                    
+                    <!-- Botó Anterior -->
+                    <button id="prevButton" onclick="manualNavigate(-1)" disabled
+                            class="p-2 text-indigo-600 bg-indigo-100 rounded-full hover:bg-indigo-200 transition duration-150 shadow-md opacity-50 cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                    </button>
+                    
+                    <!-- Botó Toggle (Stop/Play) -->
+                    <button id="playStopToggle" 
+                            class="px-5 py-2 font-medium text-white bg-red-600 rounded-xl shadow-lg hover:bg-red-700 transition duration-150"
+                            onclick="toggleAnimation()">
+                        🔴 Aturar Animació
+                    </button>
+
+                    <!-- Botó Següent -->
+                    <button id="nextButton" onclick="manualNavigate(1)" disabled
+                            class="p-2 text-indigo-600 bg-indigo-100 rounded-full hover:bg-indigo-200 transition duration-150 shadow-md opacity-50 cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+
+                <!-- Control de velocitat i Color (Slider i Picker) -->
+                <div id="speedControls" class="mt-4 p-4 bg-gray-100 rounded-xl w-full max-w-sm">
+                    <!-- Control de velocitat (Slider) -->
+                    <label for="speedSlider" class="block text-sm font-medium text-gray-700 mb-2 flex justify-between items-center">
+                        Temps d'espera (ms): 
+                        <span id="speedValue" class="font-bold text-indigo-600">500</span>
+                    </label>
+                    <input type="range" id="speedSlider" min="0" max="1000" value="500" step="50" class="w-full h-2 bg-indigo-300 rounded-lg appearance-none cursor-pointer range-lg"
+                           style="background-color: #a5b4fc;">
+
+                    <!-- Control de Color de Fons -->
+                    <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-300">
+                        <label for="bgColorPicker" class="text-sm font-medium text-gray-700">
+                            Color de Fons:
+                        </label>
+                        <input type="color" id="bgColorPicker" value="#f3f4f6"
+                               class="h-8 w-12 rounded-lg border-none cursor-pointer p-0 overflow-hidden"
+                               style="height: 32px; width: 48px;">
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- COLUMNA DRETA: Secció d'Ordre d'Animació (Drag & Drop) -->
+            <div id="listColumn" class="md:h-full">
+                <div id="imageOrderSection">
+                    <h2 class="text-xl font-bold text-gray-800 mb-3 text-left flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3.182 3.182a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3.182-3.182a4 4 0 000-5.656 1 1 0 00-1.414 1.414z" clip-rule="evenodd" />
+                            <path fill-rule="evenodd" d="M7.414 15.414a2 2 0 11-2.828-2.828l3.182-3.182a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3.182 3.182a4 4 0 005.656 5.656 1 1 0 001.414-1.414z" clip-rule="evenodd" />
+                        </svg>
+                        Ordre de la Seqüència (Arrossega i Marca per Incloure)
+                    </h2>
+                    <ul id="imageList" class="bg-white border border-gray-300 rounded-lg divide-y divide-gray-200 text-left shadow-md">
+                        <li class="p-4 text-gray-500 italic">Carrega les imatges per veure la llista.</li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+    
+    <!-- Peu de pàgina (Footer) afegit -->
+    <p class="mt-8 text-xs text-gray-400">
+        Un desenvolupament de Xavier Ribes per al GameLab de la UAB
+    </p>
+
+    <!-- Quadre de Diàleg (Modal) -->
+    <dialog id="uploadDialog" 
+            class="p-6 md:p-8 bg-white rounded-2xl shadow-2xl max-w-sm w-full transition-all duration-300">
+        
+        <div class="flex flex-col gap-6">
+            <h3 class="text-2xl font-extrabold text-gray-900 border-b pb-3">
+                Seleccionar Seqüència
+            </h3>
+            
+            <form id="uploadForm" onsubmit="handleUpload(event)" class="space-y-4">
+                
+                <div>
+                    <label for="fileInput" class="block text-sm font-medium text-gray-700 mb-2">
+                        Selecciona múltiples imatges (CTRL+Clic o SHIFT+Clic):
+                    </label>
+                    <input type="file" id="fileInput" name="file" required multiple accept="image/*"
+                           class="w-full text-sm text-gray-500
+                                  file:mr-4 file:py-2 file:px-4
+                                  file:rounded-xl file:border-0
+                                  file:text-sm file:font-semibold
+                                  file:bg-indigo-50 file:text-indigo-700
+                                  hover:file:bg-indigo-100" />
+                    <p class="mt-1 text-xs text-gray-500">Formats acceptats: JPG, PNG, GIF. Ordre inicial per nom.</p>
+                </div>
+
+                <div id="messageBox" class="p-3 rounded-lg text-sm hidden"></div>
+                
+                <div class="flex justify-end gap-3 pt-4 border-t">
+                    <button id="closeDialogButton" type="button" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-xl hover:bg-gray-300 transition duration-150">
+                        Cancel·lar
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-xl hover:bg-green-700 transition duration-150">
+                        Carregar i Animar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <script>
+        // Declaració de variables globals per l'animació
+        let animationData = []; 
+        let animationInterval;
+        let imageIndex = 0; 
+        let animationSpeed = 500; 
+        let dragSrcEl = null; 
+
+        // Referències als elements del DOM
+        const openButton = document.getElementById('openDialogButton');
+        const uploadDialog = document.getElementById('uploadDialog');
+        const messageBox = document.getElementById('messageBox');
+        const fileInput = document.getElementById('fileInput');
+        const animationImage = document.getElementById('animationImage');
+        const initialMessage = document.getElementById('initialMessage');
+        const imageFileName = document.getElementById('imageFileName');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const imageList = document.getElementById('imageList');
+        const bgColorPicker = document.getElementById('bgColorPicker');
+        const animationArea = document.getElementById('animationArea');
+        const mainGrid = document.getElementById('mainGrid');
+
+        // Nous elements de control
+        const playStopToggle = document.getElementById('playStopToggle');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+
+        // Funció per mostrar missatges
+        function showMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-blue-100', 'text-blue-800');
+            if (isError) {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                messageBox.classList.add('bg-blue-100', 'text-blue-800');
+            }
+        }
+
+        // --- Funcions de Control del Diàleg ---
+
+        openButton.addEventListener('click', () => {
+            uploadDialog.showModal();
+            messageBox.classList.add('hidden');
+        });
+
+        document.getElementById('closeDialogButton').addEventListener('click', () => {
+            uploadDialog.close();
+        });
+        
+        // Funció per controlar l'estat dels botons manuals (habilitat/deshabilitat)
+        function updateManualControlState(canNavigate) {
+            const controls = [prevButton, nextButton];
+            controls.forEach(button => {
+                button.disabled = !canNavigate;
+                if (canNavigate) {
+                    button.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    button.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
+        }
+
+        // --- Funcions de l'Animació ---
+
+        // Filtra només les imatges habilitades per l'animació
+        function getEnabledFrames() {
+            return animationData.filter(item => item.enabled);
+        }
+
+        // Funció per mostrar un frame específic (utilitzada per animació i navegació manual)
+        function displayFrame(indexInEnabledFrames) {
+            const enabledFrames = getEnabledFrames();
+            if (enabledFrames.length === 0) return;
+
+            // Lògica circular (no s'utilitza % perquè ja es gestiona a manualNavigate/startAnimation)
+            const actualIndex = indexInEnabledFrames;
+            
+            const currentFrame = enabledFrames[actualIndex];
+            animationImage.src = currentFrame.url;
+            imageFileName.textContent = `Nom del Fitxer: ${currentFrame.name}`;
+            
+            // Actualitzem l'índex global 
+            imageIndex = actualIndex; 
+        }
+
+        // Atura l'animació
+        function stopAnimation() {
+            if (!animationInterval) return;
+
+            clearInterval(animationInterval);
+            animationInterval = null;
+            
+            // Canviar el botó a Reproduir
+            playStopToggle.textContent = '▶️ Reproduir Seqüència';
+            playStopToggle.classList.remove('bg-red-600', 'hover:bg-red-700');
+            playStopToggle.classList.add('bg-green-600', 'hover:bg-green-700');
+            
+            // Habilitar controls manuals només si hi ha frames
+            updateManualControlState(getEnabledFrames().length > 0);
+            
+            showMessage('Animació aturada. Pots navegar manualment o canviar l\'ordre.', false);
+        }
+
+        // Comença o reinicia l'animació
+        function startAnimation() {
+            clearInterval(animationInterval);
+            
+            const enabledFrames = getEnabledFrames();
+
+            if (enabledFrames.length === 0) {
+                // Si no hi ha frames habilitats, aturem i mostrem un missatge.
+                stopAnimation();
+                initialMessage.classList.remove('hidden');
+                animationImage.classList.add('hidden');
+                imageFileName.classList.add('hidden');
+                initialMessage.textContent = "Cap imatge seleccionada per l'animació. Marca almenys una imatge.";
+                return;
+            }
+            
+            // Canviar el botó a Aturar
+            playStopToggle.textContent = '🔴 Aturar Animació';
+            playStopToggle.classList.remove('bg-green-600', 'hover:bg-green-700');
+            playStopToggle.classList.add('bg-red-600', 'hover:bg-red-700');
+            
+            // Deshabilitar controls manuals quan l'animació comença
+            updateManualControlState(false);
+
+            // Mostrar els elements de visualització
+            initialMessage.classList.add('hidden');
+            animationImage.classList.remove('hidden');
+            imageFileName.classList.remove('hidden');
+
+            // Funció per canviar la imatge i el nom
+            const cycleImage = () => {
+                if (enabledFrames.length > 0) {
+                    // Actualitzem l'índex i mostrem el frame
+                    displayFrame(imageIndex); 
+                    
+                    // Incrementem l'índex per al pròxim cicle (circular)
+                    imageIndex = (imageIndex + 1) % enabledFrames.length; 
+                }
+            };
+
+            // Ens assegurem de començar des de l'últim frame mostrat (o el primer si es reinicia des de zero)
+            // Si l'índex actual és invàlid (per canvi de llista), el resetejem
+            imageIndex = imageIndex >= enabledFrames.length ? 0 : imageIndex;
+
+            cycleImage(); // Mostrar la primera imatge immediatament
+            animationInterval = setInterval(cycleImage, animationSpeed);
+            
+            showMessage(`Reproduint ${enabledFrames.length} imatge(s) a ${animationSpeed}ms/frame.`, false);
+        }
+        
+        function toggleAnimation() {
+            if (animationInterval) {
+                stopAnimation();
+            } else if (getEnabledFrames().length > 0) {
+                startAnimation();
+            } else {
+                showMessage("Si us plau, carrega i habilita almenys una imatge primer.", true);
+            }
+        }
+
+        // Funció per navegar manualment (endavant/endarrera)
+        function manualNavigate(direction) {
+            // Comprovem si els botons estan habilitats (només ho estan quan està aturat)
+            if (animationInterval || prevButton.disabled) {
+                showMessage("Si us plau, atura l'animació per navegar manualment.", true);
+                return;
+            }
+
+            const enabledFrames = getEnabledFrames();
+            if (enabledFrames.length === 0) return;
+
+            const totalFrames = enabledFrames.length;
+            let nextIndex = imageIndex + direction;
+
+            // Lògica de loop (circular)
+            if (nextIndex < 0) {
+                nextIndex = totalFrames - 1; // Últim frame
+            } else if (nextIndex >= totalFrames) {
+                nextIndex = 0; // Primer frame
+            }
+
+            displayFrame(nextIndex);
+        }
+
+        // Escoltar els canvis al slider
+        speedSlider.addEventListener('input', (e) => {
+            animationSpeed = parseInt(e.target.value, 10);
+            speedValue.textContent = `${animationSpeed} ms`;
+            
+            // Si l'animació està activa, reiniciar-la amb la nova velocitat
+            if (animationInterval) {
+                startAnimation(); 
+            }
+        });
+
+        // Escoltar els canvis al selector de color
+        bgColorPicker.addEventListener('input', (e) => {
+            animationArea.classList.remove('bg-gray-100'); 
+            animationArea.style.backgroundColor = e.target.value;
+        });
+
+        // --- Funcions Drag and Drop i Checkbox ---
+
+        function dragStart(e) {
+            if (this.classList.contains('disabled')) {
+                e.preventDefault();
+                return;
+            }
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.index); 
+            this.classList.add('dragging');
+        }
+
+        function dragOver(e) {
+            e.preventDefault(); 
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function dragEnter(e) {
+            if (dragSrcEl !== this && !this.classList.contains('disabled')) {
+                 this.classList.add('bg-indigo-100');
+            }
+        }
+
+        function dragLeave(e) {
+            this.classList.remove('bg-indigo-100');
+        }
+
+        function handleDrop(e) {
+            e.stopPropagation(); 
+            this.classList.remove('bg-indigo-100');
+
+            if (dragSrcEl !== this) {
+                const targetIndex = parseInt(this.dataset.index, 10);
+                const sourceIndex = parseInt(dragSrcEl.dataset.index, 10);
+                
+                // 1. Reordenació lògica a l'array animationData
+                const [movedItem] = animationData.splice(sourceIndex, 1);
+                animationData.splice(targetIndex, 0, movedItem);
+
+                // 2. Re-renderitzar la llista i reiniciar l'animació/vista
+                renderImageList(); 
+                if (animationInterval) {
+                    startAnimation();
+                } else {
+                    // Si està aturada, actualitzem la vista manual
+                    const enabledFrames = getEnabledFrames();
+                    if (enabledFrames.length > 0) {
+                        imageIndex = Math.min(imageIndex, enabledFrames.length - 1);
+                        displayFrame(imageIndex);
+                        updateManualControlState(true);
+                    } else {
+                        stopAnimation(); 
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        function dragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('#imageList li').forEach(item => {
+                item.classList.remove('bg-indigo-100');
+            });
+        }
+        
+        // Funció per gestionar el canvi de l'estat del checkbox
+        function handleCheckboxChange(index, checkbox) {
+            animationData[index].enabled = checkbox.checked;
+
+            const listItem = checkbox.closest('.list-item');
+            if (checkbox.checked) {
+                listItem.classList.remove('disabled');
+                listItem.draggable = true;
+            } else {
+                listItem.classList.add('disabled');
+                listItem.draggable = false;
+            }
+
+            // Reiniciar l'animació o la vista manual si està activa per aplicar el filtre
+            if (animationInterval) {
+                startAnimation();
+            } else {
+                const enabledFrames = getEnabledFrames();
+                 if (enabledFrames.length > 0) {
+                    imageIndex = Math.min(imageIndex, enabledFrames.length - 1);
+                    displayFrame(imageIndex);
+                    updateManualControlState(true);
+                } else {
+                    stopAnimation(); // Si tot està deshabilitat, aturem i deshabilitar controls manuals
+                }
+            }
+        }
+
+        // --- Funció de Renderització de la Llista d'Imatges ---
+
+        function renderImageList() {
+            imageList.innerHTML = ''; 
+
+            animationData.forEach((data, index) => {
+                const li = document.createElement('li');
+                li.className = `list-item ${data.enabled ? '' : 'disabled'}`;
+                li.draggable = data.enabled; 
+                li.dataset.index = index; 
+                
+                li.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <!-- Checkbox per habilitar/deshabilitar -->
+                        <input type="checkbox" id="img-${index}" class="form-checkbox h-4 w-4 text-indigo-600 rounded" 
+                               ${data.enabled ? 'checked' : ''} data-index="${index}">
+
+                        <label for="img-${index}" class="flex items-center">
+                            <span class="font-bold text-indigo-600 w-6 text-center">${index + 1}.</span>
+                            <span class="flex-1 text-gray-800 truncate px-2">${data.name}</span>
+                        </label>
+                    </div>
+                    <span class="text-gray-400 drag-handle">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M5 4a1 1 0 011-1h8a1 1 0 011 1v4h-2V6H7v2H5V4zm0 8v4h2v-2h6v2h2v-4H5zm4-4h2v2H9V8z"/>
+                        </svg>
+                    </span>
+                `;
+                
+                li.querySelector(`input[type="checkbox"]`).addEventListener('change', function() {
+                    handleCheckboxChange(index, this);
+                });
+
+                li.addEventListener('dragstart', dragStart);
+                li.addEventListener('dragenter', dragEnter);
+                li.addEventListener('dragover', dragOver);
+                li.addEventListener('dragleave', dragLeave);
+                li.addEventListener('drop', handleDrop);
+                li.addEventListener('dragend', dragEnd);
+
+                imageList.appendChild(li);
+            });
+        }
+
+
+        // 3. Funció per processar la càrrega i iniciar l'animació
+        function handleUpload(event) {
+            event.preventDefault(); 
+            
+            const files = fileInput.files;
+            if (files.length < 1) { // Permetem una sola imatge per a una vista estàtica inicial
+                showMessage("Si us plau, selecciona almenys 1 imatge.", true);
+                updateManualControlState(false);
+                return;
+            }
+
+            stopAnimation();
+            animationData = []; 
+            
+            showMessage(`Processant ${files.length} imatges. Espera...`, false);
+
+            const fileArray = Array.from(files);
+            fileArray.sort((a, b) => a.name.localeCompare(b.name));
+
+            let filesProcessed = 0;
+            
+            fileArray.forEach(file => {
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    animationData.push({ 
+                        url: e.target.result, 
+                        name: file.name,
+                        enabled: true 
+                    });
+                    filesProcessed++;
+
+                    if (filesProcessed === fileArray.length) {
+                        // Un cop carregades totes
+                        renderImageList(); 
+                        
+                        // Mostrar el layout de dues columnes
+                        mainGrid.classList.remove('hidden');
+                        
+                        // Si només hi ha 1 imatge, es mostra, però no s'anima.
+                        if (files.length === 1) {
+                            imageIndex = 0;
+                            displayFrame(0);
+                            animationImage.classList.remove('hidden');
+                            imageFileName.classList.remove('hidden');
+                            initialMessage.classList.add('hidden');
+                            updateManualControlState(true); // Permetem controls manuals (per si en carrega una altra)
+                            showMessage("Imatge carregada. Carrega'n més per crear una animació.", false);
+                            // Canviem el botó a Reproduir si hi ha dades
+                            playStopToggle.textContent = '▶️ Reproduir Seqüència';
+                            playStopToggle.classList.remove('bg-red-600', 'hover:bg-red-700');
+                            playStopToggle.classList.add('bg-green-600', 'hover:bg-green-700');
+                        } else {
+                            // Si hi ha més d'una imatge, comencem l'animació
+                            imageIndex = 0; 
+                            startAnimation();
+                        }
+                        
+                        uploadDialog.close();
+                    }
+                };
+
+                reader.onerror = () => {
+                    console.error("Error llegint el fitxer:", file.name);
+                    filesProcessed++;
+                    if (filesProcessed === fileArray.length) {
+                        renderImageList();
+                        if (files.length > 1) startAnimation();
+                    }
+                };
+
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // Càrrega inicial del DOM: Assegurar l'estat inicial
+        window.addEventListener('load', () => {
+            updateManualControlState(false);
+        });
+    </script>
+</body>
+</html>
