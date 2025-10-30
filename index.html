@@ -6,6 +6,8 @@
     <title>Creador d'animacions</title>
     <!-- Incloure Tailwind CSS des del CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Incloure JSZip per a la generació del fitxer ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         /* Configuració del tema Tailwind i la font Inter */
         tailwind.config = {
@@ -72,11 +74,24 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            transition: background-color 0.15s, opacity 0.3s;
+            transition: background-color 0.15s, opacity 0.3s, border-left 0.3s;
+            border-left: 5px solid transparent; /* Per al destacat visual */
         }
         .list-item:hover {
             background-color: #f3f4f6;
         }
+        
+        /* Estil per a la imatge seleccionada actualment */
+        .list-item.is-current {
+            background-color: #e0e7ff; /* indigo-100 */
+            border-left: 5px solid #4f46e5; /* indigo-600 */
+            font-weight: 600;
+        }
+        .list-item.is-current .frame-name {
+            color: #1e3a8a; /* blue-900 */
+        }
+
+        /* Estils per a la llista Drag & Drop (cont.) */
         .list-item.dragging {
             opacity: 0.4;
         }
@@ -105,6 +120,16 @@
             min-height: 450px;
         }
         
+        /* Estil per a la miniatura */
+        .thumbnail {
+            width: 48px;
+            height: 48px;
+            object-fit: contain; /* Per assegurar que la imatge es vegi sencera sense retallar */
+            border-radius: 4px;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            margin-right: 8px;
+        }
+
         /* Estil per al spinner de càrrega */
         .spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
@@ -127,7 +152,7 @@
         <h1 class="text-3xl font-extrabold text-indigo-700 mb-2">Creador d'animacions</h1>
         <p class="text-gray-600 mb-6">Selecciona una seqüència d'imatges per veure-les, reordenar-les i desar-les.</p>
         
-        <!-- NOU CONTENIDOR DE BOTONS -->
+        <!-- CONTENIDOR DE BOTONS -->
         <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4 mx-auto mb-8">
             <!-- Botó Seleccionar Imatges -->
             <button id="openDialogButton" 
@@ -140,7 +165,7 @@
                 Seleccionar Imatges
             </button>
 
-            <!-- NOU Botó Importar Vídeo -->
+            <!-- Botó Importar Vídeo -->
             <button id="openVideoDialogButton" 
                     class="upload-button bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50">
                 <!-- Icona de vídeo (usant SVG) -->
@@ -198,16 +223,27 @@
                 <!-- Àrea de Guardar (Inicialment oculta) -->
                 <div id="saveInputArea" class="mt-4 p-4 bg-yellow-100 rounded-xl w-full max-w-lg hidden">
                     <label for="sequenceNameInput" class="block text-sm font-medium text-gray-800 mb-2 text-left">
-                        Nom de la seqüència (Utilitzat com a prefix per als fitxers descarregats):
+                        Nom de la seqüència (Utilitzat com a prefix per als fitxers):
                     </label>
                     <input type="text" id="sequenceNameInput" placeholder="Ex: Projecte_Animat"
                            class="w-full px-3 py-2 border border-yellow-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-3 text-sm">
+                    
+                    <!-- Checkbox per descarregar en ZIP -->
+                    <div class="flex items-center mb-3">
+                        <input id="downloadAsZip" type="checkbox"
+                               class="form-checkbox h-4 w-4 text-yellow-600 transition duration-150 ease-in-out border-gray-300 rounded focus:ring-yellow-500">
+                        <label for="downloadAsZip" class="ml-2 block text-sm text-gray-800 font-semibold">
+                            Descarregar tota la seqüència en un sol fitxer ZIP
+                        </label>
+                    </div>
+
                     <button onclick="saveSequenceFiles()"
-                            class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-xl hover:bg-yellow-700 transition duration-150">
-                        Confirmar i Descarregar Imatges (Automàticament)
+                            class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-xl hover:bg-yellow-700 transition duration-150"
+                            id="downloadButton">
+                        Confirmar i Descarregar Imatges
                     </button>
-                    <p class="mt-2 text-xs text-yellow-800 text-left">
-                        **Nota important:** A causa de les restriccions de seguretat del navegador, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (fins i tot amb el retard d'1 segon entre ells).
+                    <p id="downloadNote" class="mt-2 text-xs text-yellow-800 text-left">
+                        **Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).
                     </p>
                     <button onclick="hideSaveInput()"
                             class="mt-2 w-full px-4 py-2 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-xl hover:bg-yellow-300 transition duration-150">
@@ -250,7 +286,7 @@
                         Ordre de la Seqüència (Arrossega i Marca per Incloure)
                     </h2>
                     
-                    <!-- NOU: Controls de Selecció Massiva -->
+                    <!-- Controls de Selecció Massiva -->
                     <div class="flex space-x-2 mb-3">
                         <button onclick="toggleAllFrames(true)"
                                 class="flex-1 px-3 py-1 text-xs font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition duration-150 disabled:opacity-50"
@@ -329,7 +365,7 @@
                 Extreure Imatges d'un Vídeo
             </h3>
             
-            <form id="videoUploadForm" onsubmit="handleVideoUpload(event)" class="space-y-4">
+            <form id="videoUploadForm" onsubmit="handleVideoUpload(event)" class="space-space-y-4">
                 
                 <div>
                     <label for="videoInput" class="block text-sm font-medium text-gray-700 mb-2">
@@ -345,13 +381,42 @@
                     <p class="mt-1 text-xs text-gray-500">Formats acceptats: MP4, WebM, MOV, etc.</p>
                 </div>
                 
-                <div>
+                <div class="mt-4">
                     <label for="frameRateInput" class="block text-sm font-medium text-gray-700 mb-2">
                         Frames per Segon (FPS) a Extreure:
                     </label>
                     <input type="number" id="frameRateInput" value="10" min="1" max="30" step="1" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"/>
                     <p class="mt-1 text-xs text-gray-500">Un FPS més baix genera menys imatges i estalvia memòria.</p>
+                </div>
+
+                <!-- MODIFICACIÓ 1: Controls de Trim (Alineació forçada amb min-height al label container) -->
+                <div class="mt-4 p-3 border border-blue-200 rounded-lg bg-blue-50">
+                    <p class="text-sm font-semibold text-blue-700 mb-2">Trim: Selecciona un Fragment</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- Columna 1 -->
+                        <div class="flex flex-col">
+                            <!-- min-h-[2.5rem] per acomodar 2 línies de text si cal, assegurant l'alineació de l'input -->
+                            <div class="min-h-[2.5rem]">
+                                <label for="trimStartInput" class="block text-xs font-medium text-gray-700 mb-1">
+                                    Temps d'Inici (segons):
+                                </label>
+                            </div>
+                            <input type="number" id="trimStartInput" value="0" min="0" step="0.1" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"/>
+                        </div>
+                        <!-- Columna 2 -->
+                        <div class="flex flex-col">
+                            <div class="min-h-[2.5rem]">
+                                <label for="trimEndInput" class="block text-xs font-medium text-gray-700 mb-1">
+                                    Temps Final (segons, 0=fins al final):
+                                </label>
+                            </div>
+                            <input type="number" id="trimEndInput" value="0" min="0" step="0.1" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"/>
+                            <p id="videoDurationHint" class="mt-1 text-xs text-gray-500 italic hidden">Durada: 0s</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Missatgeria i Spinner de Càrrega del Vídeo -->
@@ -362,8 +427,7 @@
                 
                 <div class="flex justify-end gap-3 pt-4 border-t">
                     <button id="closeVideoDialogButton" type="button" 
-                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-xl hover:bg-gray-300 transition duration-150"
-                            disabled>
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-xl hover:bg-gray-300 transition duration-150">
                         Cancel·lar
                     </button>
                     <button type="submit" id="processVideoButton"
@@ -371,7 +435,7 @@
                         Processar Vídeo
                     </button>
                 </div>
-                <!-- NOU SPINNER DE CÀRREGA -->
+                <!-- SPINNER DE CÀRREGA -->
                 <div id="loadingSpinner" class="flex items-center justify-center gap-2 text-blue-600 hidden">
                     <div class="spinner"></div>
                     <span id="spinnerMessage">Processant...</span>
@@ -400,6 +464,7 @@
         const speedSlider = document.getElementById('speedSlider');
         const speedValue = document.getElementById('speedValue');
         const imageList = document.getElementById('imageList');
+        const listColumn = document.getElementById('listColumn'); 
         const bgColorPicker = document.getElementById('bgColorPicker');
         const animationArea = document.getElementById('animationArea');
         const mainGrid = document.getElementById('mainGrid');
@@ -408,6 +473,9 @@
         const nextButton = document.getElementById('nextButton');
         const saveInputArea = document.getElementById('saveInputArea');
         const sequenceNameInput = document.getElementById('sequenceNameInput');
+        const downloadAsZipCheckbox = document.getElementById('downloadAsZip');
+        const downloadButton = document.getElementById('downloadButton');
+        const downloadNote = document.getElementById('downloadNote');
 
         // Elements de Video
         const openVideoButton = document.getElementById('openVideoDialogButton');
@@ -419,11 +487,18 @@
         const processVideoButton = document.getElementById('processVideoButton');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const spinnerMessage = document.getElementById('spinnerMessage');
+        
+        // NOUS elements de Trim
+        const trimStartInput = document.getElementById('trimStartInput');
+        const trimEndInput = document.getElementById('trimEndInput');
+        const videoDurationHint = document.getElementById('videoDurationHint');
 
-
-        // Nous botons de selecció massiva
+        // Botons de selecció massiva
         const selectAllButton = document.getElementById('selectAllButton');
         const deselectAllButton = document.getElementById('deselectAllButton');
+        
+        // Variable global per guardar la durada del vídeo un cop carregat
+        let videoDuration = 0; 
 
 
         // Funció per mostrar missatges (Reutilitzada)
@@ -458,11 +533,46 @@
         openVideoButton.addEventListener('click', () => {
             videoDialog.showModal();
             videoMessageBox.classList.add('hidden');
+            // Reset de la durada en obrir el diàleg
+            videoDuration = 0; 
+            videoDurationHint.classList.add('hidden');
         });
 
         closeVideoDialogButton.addEventListener('click', () => {
             videoDialog.close();
         });
+        
+        // Listener per carregar metadades del vídeo i actualitzar el camp de durada
+        videoInput.addEventListener('change', () => {
+            const file = videoInput.files[0];
+            if (!file) return;
+
+            const videoElement = document.createElement('video');
+            videoElement.preload = 'metadata';
+            videoElement.muted = true; 
+            
+            const videoURL = URL.createObjectURL(file);
+            videoElement.src = videoURL;
+
+            videoElement.onloadedmetadata = () => {
+                videoDuration = videoElement.duration;
+                videoDurationHint.textContent = `Durada total: ${videoDuration.toFixed(2)} segons.`;
+                videoDurationHint.classList.remove('hidden');
+                
+                // Establim el valor per defecte del Trim End al final del vídeo
+                trimEndInput.value = videoDuration.toFixed(2);
+
+                URL.revokeObjectURL(videoURL); // Neteja
+            };
+
+            videoElement.onerror = () => {
+                videoDurationHint.textContent = 'Error llegint el vídeo.';
+                videoDurationHint.classList.remove('hidden');
+                videoDuration = 0;
+                URL.revokeObjectURL(videoURL);
+            }
+        });
+
 
         // Funció per controlar l'estat dels botons manuals (habilitat/deshabilitat)
         function updateManualControlState(canNavigate) {
@@ -485,15 +595,19 @@
         }
 
         // --- Gestió de l'Estat de Processament del Vídeo ---
-        function setProcessingState(isProcessing) {
+        function setProcessingState(isProcessing, message = "Processant...") {
             if (isProcessing) {
                 loadingSpinner.classList.remove('hidden');
+                spinnerMessage.textContent = message;
                 processVideoButton.disabled = true;
                 processVideoButton.classList.add('opacity-50', 'cursor-not-allowed');
-                closeVideoDialogButton.disabled = true;
-                closeVideoDialogButton.classList.add('opacity-50', 'cursor-not-allowed');
+                // Mantenim el botó de cancel·lar habilitat durant el processament per si l'usuari vol aturar-ho
+                closeVideoDialogButton.disabled = false;
+                closeVideoDialogButton.classList.remove('opacity-50', 'cursor-not-allowed');
                 videoInput.disabled = true;
                 frameRateInput.disabled = true;
+                trimStartInput.disabled = true;
+                trimEndInput.disabled = true;
                 videoMessageBox.classList.remove('hidden'); 
             } else {
                 loadingSpinner.classList.add('hidden');
@@ -503,13 +617,15 @@
                 closeVideoDialogButton.classList.remove('opacity-50', 'cursor-not-allowed');
                 videoInput.disabled = false;
                 frameRateInput.disabled = false;
+                trimStartInput.disabled = false;
+                trimEndInput.disabled = false;
             }
         }
 
 
-        // --- Funcions de Guardar ---
+        // --- Funcions de Guardar (ZIP) ---
 
-        // Helper per descarregar un Data URL
+        // Helper per descarregar un Data URL o Blob URL
         function downloadURI(uri, name) {
             const link = document.createElement('a');
             link.download = name;
@@ -520,6 +636,19 @@
             link.click();
             document.body.removeChild(link);
         }
+
+        // Escoltar el canvi del checkbox ZIP i actualitzar el missatge/botó
+        downloadAsZipCheckbox.addEventListener('change', () => {
+            const isZip = downloadAsZipCheckbox.checked;
+            if (isZip) {
+                downloadButton.textContent = 'Confirmar i Descarregar ZIP';
+                downloadNote.innerHTML = `**Nota important:** La generació del fitxer ZIP pot trigar uns segons per a seqüències molt grans.`;
+            } else {
+                downloadButton.textContent = 'Confirmar i Descarregar Imatges (Automàticament)';
+                downloadNote.innerHTML = `**Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).`;
+            }
+        });
+
 
         // Mostra l'àrea d'introducció del nom de la seqüència
         function showSaveInput() {
@@ -535,10 +664,12 @@
         function hideSaveInput() {
             saveInputArea.classList.add('hidden');
         }
-
-        // Gestió de la descàrrega de fitxers 
+        
+        // Gestió de la descàrrega de fitxers (Individual o ZIP)
         function saveSequenceFiles() {
             const sequenceName = sequenceNameInput.value.trim();
+            const downloadAsZip = downloadAsZipCheckbox.checked;
+            
             if (!sequenceName) {
                 showMessage("Si us plau, introdueix un nom vàlid per a la seqüència.", true);
                 return;
@@ -553,57 +684,153 @@
 
             // Netejar el nom de la seqüència
             const sanitizedName = sequenceName.replace(/[^a-zA-Z0-9_\-]/g, '_');
-
-            let downloadCount = 0;
-            // Retard d'1 segon per intentar evitar el bloqueig del navegador.
-            const delay = 1000; 
-
-            showMessage(`Preparant la descàrrega automàtica de ${enabledFrames.length} fitxers amb un retard d'${delay}ms entre ells. Pot ser que el navegador demani autorització la primera vegada.`, false);
-
-            enabledFrames.forEach((frame, index) => {
-                // 1. Extreure l'extensió (o assumir 'png' per frames de vídeo)
+            
+            // --- Càlcul de noms i extensions per a tots els casos ---
+            const filesToSave = enabledFrames.map((frame, index) => {
+                 // 1. Extreure l'extensió (or assumir 'png' per frames de vídeo)
                 const fileExtensionMatch = frame.name.match(/\.([a-zA-Z0-9]+)$/i);
                 const originalExtension = fileExtensionMatch ? fileExtensionMatch[1] : 'png';
-
+                
                 // 2. Format de la posició (3 dígits). Utilitzem index + 1 per la numeració 1-based
                 const position = String(index + 1).padStart(3, '0');
                 
                 // 3. NOU FORMAT: [Nom de la Seqüència]_[Posició].extensió
                 const newFileName = `${sanitizedName}_${position}.${originalExtension}`;
                 
-                // Programar la descàrrega amb un retard
-                setTimeout(() => {
-                    downloadURI(frame.url, newFileName);
-                    downloadCount++;
-                    
-                    if (downloadCount === enabledFrames.length) {
-                        showMessage(`S'han finalitzat les descàrregues de ${downloadCount} imatges amb el nom base "${sanitizedName}".`, false);
-                        hideSaveInput();
-                    }
-                }, index * delay); // Retard creixent
+                return {
+                    dataURL: frame.url,
+                    fileName: newFileName,
+                    mimeType: `image/${originalExtension}` // MimeType basat en l'extensió
+                };
             });
+
+            if (downloadAsZip) {
+                // --- DESCARREGA EN ZIP ---
+                downloadButton.disabled = true;
+                downloadButton.textContent = 'Generant ZIP... (Espera)';
+                
+                showMessage(`Començant la generació del fitxer ZIP amb ${filesToSave.length} imatges.`, false);
+
+                const zip = new JSZip();
+                
+                filesToSave.forEach(file => {
+                    // Convertim DataURL a binari pur per JSZip
+                    const base64Data = file.dataURL.split(',')[1];
+                    // Afegim el fitxer al ZIP
+                    zip.file(file.fileName, base64Data, { base64: true });
+                });
+
+                // Generar el fitxer ZIP
+                zip.generateAsync({type:"blob"})
+                .then(function(content) {
+                    const zipFileName = `${sanitizedName}_Seqüencia.zip`;
+                    const blobUrl = URL.createObjectURL(content);
+                    downloadURI(blobUrl, zipFileName);
+                    URL.revokeObjectURL(blobUrl); // Neteja
+                    
+                    showMessage(`Descàrrega de "${zipFileName}" finalitzada amb èxit!`, false);
+                    hideSaveInput();
+                })
+                .catch(err => {
+                    console.error("Error durant la generació del ZIP:", err);
+                    showMessage(`Error generant el ZIP: ${err.message}`, true);
+                })
+                .finally(() => {
+                    downloadButton.disabled = false;
+                    downloadButton.textContent = 'Confirmar i Descarregar ZIP';
+                });
+
+            } else {
+                // --- DESCARREGA INDIVIDUAL ---
+                
+                let downloadCount = 0;
+                const delay = 1000; // Retard d'1 segon 
+                
+                downloadButton.disabled = true;
+                
+                showMessage(`Preparant la descàrrega automàtica de ${filesToSave.length} fitxers amb un retard d'${delay}ms entre ells...`, false);
+
+                filesToSave.forEach((file, index) => {
+                    // Programar la descàrrega amb un retard
+                    setTimeout(() => {
+                        downloadURI(file.dataURL, file.fileName);
+                        downloadCount++;
+                        
+                        if (downloadCount === filesToSave.length) {
+                            showMessage(`S'han finalitzat les descàrregues de ${downloadCount} imatges amb el nom base "${sanitizedName}".`, false);
+                            hideSaveInput();
+                            downloadButton.disabled = false;
+                        }
+                    }, index * delay); // Retard creixent
+                });
+            }
         }
 
 
-        // --- Funcions de l'Animació ---
+        // --- Lògica de l'Animació ---
 
         // Filtra només les imatges habilitades per l'animació
         function getEnabledFrames() {
             return animationData.filter(item => item.enabled);
         }
+        
+        // Funció per netejar el destacat de la llista
+        function clearCurrentFrameHighlight() {
+            document.querySelectorAll('.list-item').forEach(item => {
+                item.classList.remove('is-current');
+            });
+        }
+        
+        /**
+         * Funció per destacar el frame actual a la llista d'imatges
+         * @param {string} currentFrameName - El nom del fitxer del frame que s'està mostrant.
+         */
+        function highlightCurrentFrame(currentFrameName) {
+            clearCurrentFrameHighlight();
+            
+            // Trobar l'element a la llista pel nom de fitxer
+            const allListItems = document.querySelectorAll('#imageList li');
+            
+            // Buscar en l'array original per trobar l'índex global
+            const globalIndex = animationData.findIndex(frame => frame.name === currentFrameName);
 
-        // Funció per mostrar un frame específic
+            if (globalIndex !== -1) {
+                // Seleccionar l'element de la llista pel seu data-index
+                const currentElement = document.querySelector(`.list-item[data-index='${globalIndex}']`);
+                if (currentElement) {
+                    currentElement.classList.add('is-current');
+                    
+                    // ELIMINAT (MODIFICACIÓ 2): Scroll automàtic eliminat
+                    // currentElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        /**
+         * Funció per mostrar un frame específic
+         * @param {number} indexInEnabledFrames - L'índex dins del sub-array de frames habilitats.
+         */
         function displayFrame(indexInEnabledFrames) {
             const enabledFrames = getEnabledFrames();
-            if (enabledFrames.length === 0) return;
+            if (enabledFrames.length === 0) {
+                clearCurrentFrameHighlight();
+                return;
+            }
+
+            const totalFrames = enabledFrames.length; // Obtenim el nombre total de frames habilitats
 
             const actualIndex = indexInEnabledFrames;
             
             const currentFrame = enabledFrames[actualIndex];
             animationImage.src = currentFrame.url;
-            imageFileName.textContent = `Nom del Fitxer: ${currentFrame.name}`;
+            
+            // ACTUALITZACIÓ: Mostra el nom del fitxer i el recompte total de frames habilitats
+            imageFileName.textContent = `Nom del Fitxer: ${currentFrame.name} (${totalFrames} frames)`;
             
             imageIndex = actualIndex; 
+
+            // NOU: Destacar el frame a la llista de la dreta
+            highlightCurrentFrame(currentFrame.name);
         }
 
         // Atura l'animació
@@ -636,6 +863,7 @@
                 imageFileName.classList.add('hidden');
                 initialMessage.classList.remove('hidden');
                 initialMessage.textContent = "Cap imatge seleccionada per l'animació. Marca almenys una imatge a la dreta.";
+                clearCurrentFrameHighlight(); // Neteja el destacat
                 return;
             }
             
@@ -716,7 +944,7 @@
             animationArea.style.backgroundColor = e.target.value;
         });
         
-        // --- NOU: Funció de Selecció/Deselecció Massiva ---
+        // --- Funció de Selecció/Deselecció Massiva ---
 
         function toggleAllFrames(enable) {
             // Actualitzar la lògica de dades
@@ -737,13 +965,14 @@
                     stopAnimation(); // Aturem l'animació per si l'ordre ha canviat
                 }
             } else {
-                // Si es deshabiliten totes, aturem l'animació i netejem la vista
+                // Si es deshabiliten totes, aturem l'animació i netegem la vista
                 stopAnimation();
                 animationImage.classList.add('hidden');
                 imageFileName.classList.add('hidden');
                 initialMessage.classList.remove('hidden');
                 initialMessage.textContent = "Cap imatge seleccionada per l'animació. Marca almenys una imatge a la dreta.";
                 updateManualControlState(false);
+                clearCurrentFrameHighlight();
             }
         }
 
@@ -841,12 +1070,13 @@
                         displayFrame(imageIndex);
                         updateManualControlState(true);
                     } else {
-                        // Si no queda cap imatge habilitada, netejem la vista
+                        // Si no queda cap imatge habilitada, netegem la vista
                         stopAnimation(); 
                         animationImage.classList.add('hidden');
                         imageFileName.classList.add('hidden');
                         initialMessage.classList.remove('hidden');
                         initialMessage.textContent = "Cap imatge seleccionada per l'animació. Marca almenys una imatge a la dreta.";
+                        clearCurrentFrameHighlight();
                     }
                 } else {
                     stopAnimation(); 
@@ -854,29 +1084,35 @@
             }
         }
 
-        // --- Funció de Renderització de la Llista d'Imatges (Actualitzada per als Checkboxes) ---
+        // --- Funció de Renderització de la Llista d'Imatges (Actualitzada per a Miniatures i Checkboxes) ---
 
         function renderImageList() {
             imageList.innerHTML = ''; 
+            const currentFrameName = animationImage.src ? animationImage.src.split('/').pop() : null; // Només una referència per destacar
 
             animationData.forEach((data, index) => {
+                const isCurrent = currentFrameName === data.url.split('/').pop(); // Compara l'URL per simplificar
+
                 const li = document.createElement('li');
-                li.className = `list-item ${data.enabled ? '' : 'disabled'}`;
+                li.className = `list-item ${data.enabled ? '' : 'disabled'} ${isCurrent ? 'is-current' : ''}`;
                 li.draggable = data.enabled; 
                 li.dataset.index = index; 
                 
                 li.innerHTML = `
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 w-full">
                         <!-- Checkbox per habilitar/deshabilitar -->
                         <input type="checkbox" id="img-${index}" class="frame-checkbox form-checkbox h-4 w-4 text-indigo-600 rounded" 
                                ${data.enabled ? 'checked' : ''} data-index="${index}">
 
-                        <label for="img-${index}" class="flex items-center">
-                            <span class="font-bold text-indigo-600 w-6 text-center">${index + 1}.</span>
-                            <span class="flex-1 text-gray-800 truncate px-2">${data.name}</span>
+                        <label for="img-${index}" class="flex items-center flex-1 min-w-0">
+                            <!-- Miniatura de la imatge -->
+                            <img src="${data.url}" alt="Frame ${index + 1}" class="thumbnail">
+                            
+                            <span class="font-bold text-indigo-600 w-6 text-center shrink-0">${index + 1}.</span>
+                            <span class="flex-1 text-gray-800 truncate px-2 frame-name">${data.name}</span>
                         </label>
                     </div>
-                    <span class="text-gray-400 drag-handle">
+                    <span class="text-gray-400 drag-handle shrink-0 ml-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M5 4a1 1 0 011-1h8a1 1 0 011 1v4h-2V6H7v2H5V4zm0 8v4h2v-2h6v2h2v-4H5zm4-4h2v2H9V8z"/>
                         </svg>
@@ -884,9 +1120,34 @@
                 `;
                 
                 // IMPORTANT: Utilitzem el delegat de l'esdeveniment change del checkbox
-                li.querySelector('.frame-checkbox').addEventListener('change', function() {
+                const checkbox = li.querySelector('.frame-checkbox');
+                checkbox.addEventListener('change', function() {
                     handleCheckboxChange(index, this);
                 });
+                
+                // Quan es clica sobre el nom (label), es mostra el frame si no està en animació
+                li.querySelector('label').addEventListener('click', (e) => {
+                    // No fem res si l'animació està activa
+                    if (animationInterval) {
+                        e.preventDefault(); 
+                        return;
+                    }
+                    // Si l'element està deshabilitat, no fem res
+                    if (!data.enabled) {
+                         e.preventDefault(); 
+                         return;
+                    }
+
+                    // Trobar la posició d'aquesta frame dins del sub-array de frames habilitats
+                    const enabledFrames = getEnabledFrames();
+                    const enabledIndex = enabledFrames.findIndex(f => f.name === data.name);
+                    
+                    if (enabledIndex !== -1) {
+                        displayFrame(enabledIndex);
+                    }
+                    // NOTA: Prevenció del click del checkbox ja està controlada implícitament per la interacció del navegador
+                });
+
 
                 li.addEventListener('dragstart', dragStart);
                 li.addEventListener('dragenter', dragEnter);
@@ -898,6 +1159,13 @@
                 imageList.appendChild(li);
             });
             
+            // Si hi ha un frame mostrant-se (imageIndex té un valor), el destaquem després de renderitzar
+            if (getEnabledFrames().length > 0) {
+                 displayFrame(imageIndex);
+            } else {
+                 clearCurrentFrameHighlight();
+            }
+
             // Actualitzem l'estat dels botons de selecció massiva
             updateMassSelectButtons();
         }
@@ -955,7 +1223,7 @@
             });
         }
         
-        // --- REFACTORITZACIÓ: Funció de Càrrega de Vídeo (Extracció de Frames) ---
+        // --- Funció de Càrrega de Vídeo (Extracció de Frames amb Trim) ---
 
         async function handleVideoUpload(event) {
             event.preventDefault(); 
@@ -968,21 +1236,31 @@
                  return;
             }
             if (isNaN(fps) || fps < 1 || fps > 30) {
-                 showMessage("El FPS ha de ser un nombre entre 1 i 30.", true, videoMessageBox);
+                 showMessage("El FPS ha de ser un nombre enter entre 1 i 30.", true, videoMessageBox);
                  return;
             }
             
-            videoDialog.close();
+            // 1. Validació dels temps de trim
+            const trimStart = parseFloat(trimStartInput.value);
+            let trimEnd = parseFloat(trimEndInput.value);
+
+            if (isNaN(trimStart) || trimStart < 0) {
+                showMessage("L'hora d'inici ha de ser 0 o positiva.", true, videoMessageBox);
+                return;
+            }
+            if (isNaN(trimEnd) || trimEnd < 0) {
+                showMessage("L'hora final ha de ser 0 (final del vídeo) o positiva.", true, videoMessageBox);
+                return;
+            }
+            
+            // 2. Inici de l'estat de processament (la finestra del diàleg es manté oberta)
             stopAnimation();
             animationData = []; 
-            setProcessingState(true);
+            setProcessingState(true, "Iniciant la càrrega del vídeo...");
             
-            // Fix: Declarar videoURL fuera del bloque try para que sea accesible en finally
             let videoURL = null; 
 
             try {
-                // Utilitzem el missatge de l'spinner per al missatge de càrrega
-                spinnerMessage.textContent = `Carregant vídeo (${file.name}) i metadades...`;
                 
                 const videoElement = document.createElement('video');
                 videoElement.preload = 'metadata';
@@ -992,7 +1270,7 @@
                 videoURL = URL.createObjectURL(file);
                 videoElement.src = videoURL;
                 
-                // 1. Esperar que el vídeo carregui les metadades (async/await)
+                // Esperar que el vídeo carregui les metadades
                 await new Promise((resolve, reject) => {
                     videoElement.onloadedmetadata = resolve;
                     videoElement.onerror = (e) => {
@@ -1000,14 +1278,35 @@
                     };
                 });
                 
-                const duration = videoElement.duration;
-                const interval = 1 / fps; // Interval de temps per capturar un frame
-                // Calculem el nombre de frames a extreure, utilitzant un offset per evitar errors de flotació
-                const totalFrames = Math.floor(duration / interval); 
+                const fullDuration = videoElement.duration;
                 
-                spinnerMessage.textContent = `Vídeo carregat: Durada ${duration.toFixed(2)}s. Extreient ${totalFrames} frames...`;
+                // Validació final contra la durada real
+                if (trimStart >= fullDuration) {
+                    throw new Error(`L'hora d'inici (${trimStart.toFixed(2)}s) supera la durada total del vídeo (${fullDuration.toFixed(2)}s).`);
+                }
+
+                // Ajustar trimEnd: 0 significa fins al final
+                if (trimEnd === 0 || trimEnd > fullDuration) {
+                    trimEnd = fullDuration;
+                }
                 
-                // Creem el canvas per a la captura
+                if (trimStart >= trimEnd) {
+                    throw new Error("L'hora d'inici ha de ser anterior a l'hora final.");
+                }
+
+                const durationToExtract = trimEnd - trimStart;
+                const interval = 1 / fps; 
+                // Càlcul del nombre de frames a extreure
+                const totalFrames = Math.floor(durationToExtract / interval); 
+                
+                // Si la durada del trim és molt petita o FPS molt alt, podríem tenir 0 frames
+                if (totalFrames === 0) {
+                    throw new Error("La selecció de trim i FPS genera menys d'un frame. Ajusta els paràmetres.");
+                }
+
+                // Actualització d'estat a la UI del diàleg
+                setProcessingState(true, `Vídeo carregat: Durada ${fullDuration.toFixed(2)}s. Extreient ${totalFrames} frames de ${trimStart.toFixed(2)}s a ${trimEnd.toFixed(2)}s...`);
+                
                 const canvas = document.createElement('canvas');
                 canvas.width = videoElement.videoWidth;
                 canvas.height = videoElement.videoHeight;
@@ -1017,68 +1316,75 @@
                 // Funció promesa per buscar i dibuixar un frame de manera fiable
                 const seekAndDraw = (time, frameCount) => {
                     return new Promise((resolve) => {
-                        // Event handler per quan la cerca ha finalitzat i el frame està llest
+                        let seekTimeout;
+
                         const handleSeeked = () => {
+                            clearTimeout(seekTimeout);
                             videoElement.removeEventListener('seeked', handleSeeked);
+                            videoElement.removeEventListener('error', handleError);
                             
-                            // Dibuixem el frame que ja s'ha carregat correctament
                             ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
                             const dataURL = canvas.toDataURL('image/png');
                             
                             resolve(dataURL);
                         };
                         
-                        // Si la cerca falla, resolem amb null per continuar
                         const handleError = () => {
+                            clearTimeout(seekTimeout);
                             videoElement.removeEventListener('seeked', handleSeeked);
+                            videoElement.removeEventListener('error', handleError);
                             console.error(`Error buscant al temps ${time}s (frame ${frameCount}).`);
                             resolve(null); 
                         };
+                        
+                        // Per evitar que la cerca es quedi bloquejada infinitament en algun navegador o fitxer corrupte
+                        seekTimeout = setTimeout(() => {
+                            handleError();
+                            console.warn(`Timeout buscant el frame al temps ${time}s.`);
+                        }, 5000); // 5 segons de temps d'espera
 
-
-                        // S'adjunten els listeners per garantir que l'estat és correcte abans de dibuixar
                         videoElement.addEventListener('seeked', handleSeeked);
                         videoElement.addEventListener('error', handleError);
 
-                        // Iniciar la cerca del temps. L'event 'seeked' es dispararà quan estigui llest.
                         videoElement.currentTime = time;
                     });
                 };
                 
-                // 2. Extracció seqüencial de frames (async/await)
+                // 2. Extracció seqüencial de frames (començant des de trimStart)
                 for (let i = 0; i < totalFrames; i++) {
-                    const currentTime = i * interval;
-                    
-                    // UTILITZEM i + 1 PER A LA NUMERACIÓ 1-BASED
+                    const currentTime = trimStart + (i * interval);
                     const frameNumber = i + 1; 
 
-                    // Esperar el frame actual de manera asíncrona
+                    // Ens assegurem de no passar-nos de l'hora final (amb una petita tolerància)
+                    if (currentTime >= trimEnd + 0.001) break; 
+
                     const dataURL = await seekAndDraw(currentTime, i);
                     
                     if (dataURL) {
                         animationData.push({
                             url: dataURL,
                             // El nom del fitxer ara comença en 0001
-                            name: `${file.name.split('.')[0]}_frame_${String(frameNumber).padStart(4, '0')}.png`,
+                            name: `${file.name.split('.')[0]}_trim_${trimStart.toFixed(1)}s_frame_${String(frameNumber).padStart(4, '0')}.png`,
                             enabled: true
                         });
                         // Missatge de progrés actualitzat a l'spinner
-                        spinnerMessage.textContent = `Extret frame ${frameNumber} de ${totalFrames}.`;
+                        setProcessingState(true, `Extret frame ${frameNumber} de ${totalFrames}. (${(currentTime-trimStart).toFixed(2)}s)`);
                     }
                 }
 
-                // Finalitzem la càrrega un cop s'ha completat el bucle
+                // Un cop tot ha acabat
+                videoDialog.close(); // Tanquem el diàleg només quan s'ha completat
                 finalizeLoad();
                 
             } catch (error) {
                 console.error("Error durant el processament del vídeo:", error);
-                showMessage(`Error durant el processament del vídeo: ${error.message}. Assegura't que el format és compatible i el FPS és raonable.`, true);
+                // Si hi ha un error, el missatge d'error es mostra a la caixa de missatges
+                showMessage(`Error durant el processament del vídeo: ${error.message}.`, true, videoMessageBox);
+                // I el diàleg es manté obert (no es fa 'close')
             } finally {
                 // Neteja l'URL de l'objecte creat
                 if (videoURL) URL.revokeObjectURL(videoURL);
-                setProcessingState(false);
-                // Tornem a obrir el modal per si cal
-                // videoDialog.close(); // NO: el modal es va tancar a l'inici per mostrar l'spinner
+                setProcessingState(false); // Deshabilita el spinner i rehabilita el botó
             }
         }
         
@@ -1090,11 +1396,12 @@
                 return;
             }
             
+            // Neteja l'índex per assegurar que es mostra el primer frame
+            imageIndex = 0; 
             renderImageList(); 
             mainGrid.classList.remove('hidden');
             
-            if (animationData.length === 1) {
-                imageIndex = 0;
+            if (animationData.length <= 1) {
                 displayFrame(0);
                 animationImage.classList.remove('hidden');
                 imageFileName.classList.remove('hidden');
@@ -1108,7 +1415,6 @@
                 playStopToggle.classList.add('bg-green-600', 'hover:bg-green-700');
             } else {
                 // Si hi ha més d'una imatge, comencem l'animació automàticament
-                imageIndex = 0; 
                 startAnimation();
             }
             
@@ -1127,6 +1433,11 @@
              playStopToggle.textContent = '▶️ Reproduir Seqüència';
              playStopToggle.classList.remove('bg-red-600', 'hover:bg-red-700');
              playStopToggle.classList.add('bg-green-600', 'hover:bg-green-700');
+             
+             // Establir l'estat inicial de la nota de descàrrega
+             downloadAsZipCheckbox.checked = false; // Assegurem que està desmarcat inicialment
+             downloadButton.textContent = 'Confirmar i Descarregar Imatges (Automàticament)';
+             downloadNote.innerHTML = `**Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).`;
         });
     </script>
 </body>
