@@ -216,7 +216,7 @@
                     </button>
 
                     <!-- Botó de Guardar Seqüència (Ahora es el único botón de guardar) -->
-                    <button id="saveSequenceButton" onclick="showSaveOptions('sequence')"
+                    <button id="saveSequenceButton" onclick="showSaveOptions()"
                             class="ml-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition duration-150">
                         💾 Guardar Seqüència
                     </button>
@@ -231,27 +231,54 @@
                     <input type="text" id="sequenceNameInput" placeholder="Ex: Projecte_Animat"
                            class="w-full px-3 py-2 border border-yellow-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-3 text-sm">
 
-                    <!-- Opcions de DESA COM A SEQÜÈNCIA (IMG) -->
-                    <div id="sequenceSaveOptions" class="space-y-3"> <!-- Hacemos visible por defecto -->
-                        <h4 class="text-md font-bold text-gray-800 mb-2 text-left">Opcions de Seqüència d'Imatges</h4>
-                        <div class="flex items-center">
-                            <input id="downloadAsZip" type="checkbox"
-                                   class="form-checkbox h-4 w-4 text-yellow-600 transition duration-150 ease-in-out border-gray-300 rounded focus:ring-yellow-500">
-                            <label for="downloadAsZip" class="ml-2 block text-sm text-gray-800 font-semibold">
-                                Descarregar tota la seqüència en un sol fitxer ZIP
-                            </label>
+                    <!-- Opcions de DESA (IMG + GIF) -->
+                    <div id="sequenceSaveOptions" class="space-y-4">
+                        
+                        <!-- Bloc d'Imatges/ZIP -->
+                        <div>
+                            <h4 class="text-md font-bold text-gray-800 mb-2 text-left">1. Descarregar Fotogrames</h4>
+                            <div class="flex items-center mb-3">
+                                <input id="downloadAsZip" type="checkbox"
+                                       class="form-checkbox h-4 w-4 text-yellow-600 transition duration-150 ease-in-out border-gray-300 rounded focus:ring-yellow-500">
+                                <label for="downloadAsZip" class="ml-2 block text-sm text-gray-800 font-semibold">
+                                    Descarregar tota la seqüència en un sol fitxer ZIP
+                                </label>
+                            </div>
+                            <button onclick="saveSequenceFiles()"
+                                    class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-xl hover:bg-yellow-700 transition duration-150"
+                                    id="downloadSequenceButton">
+                                Confirmar i Descarregar Imatges
+                            </button>
+                            <p id="downloadNote" class="mt-2 text-xs text-yellow-800 text-left">
+                                **Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).
+                            </p>
                         </div>
-                        <button onclick="saveSequenceFiles()"
-                                class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-xl hover:bg-yellow-700 transition duration-150"
-                                id="downloadSequenceButton">
-                            Confirmar i Descarregar Imatges
-                        </button>
-                        <p id="downloadNote" class="mt-2 text-xs text-yellow-800 text-left">
-                            **Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).
-                        </p>
-                    </div>
 
-                    <!-- REMOVIDO: Opcions de DESA COM A GIF ANIAMAT -->
+                        <!-- Bloc de GIF Animat -->
+                        <div class="pt-4 border-t border-yellow-300">
+                            <h4 class="text-md font-bold text-gray-800 mb-3 text-left">2. Descarregar com a Animació</h4>
+                            
+                            <div class="flex items-center justify-between mb-3 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                                <label for="gifLoopInput" class="block text-sm text-gray-800 font-semibold text-left">
+                                    Nombre de repeticions (bucle):
+                                </label>
+                                <input type="number" id="gifLoopInput" min="1" placeholder="Infinit"
+                                       class="w-24 px-3 py-1 border border-yellow-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm">
+                            </div>
+                            <p class="mb-3 text-xs text-yellow-800 text-left italic">
+                                * Nota: Si no s'hi posa cap número (o es deixa en blanc), el GIF es repetirà de manera infinita.
+                            </p>
+                            
+                            <button onclick="processAndSaveGif()"
+                                    class="w-full px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition duration-150"
+                                    id="downloadGifButton">
+                                🖼️ Desar com a GIF animat
+                            </button>
+                            <p class="mt-2 text-xs text-purple-800 text-left">
+                                **Nota:** El processament del GIF es fa localment al vostre navegador. Pot trigar uns segons segons el nombre i mida dels fotogrames.
+                            </p>
+                        </div>
+                    </div>
                     
                     <button onclick="hideSaveInput()"
                             class="mt-4 w-full px-4 py-2 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-xl hover:bg-yellow-300 transition duration-150">
@@ -488,18 +515,13 @@
         const saveInputArea = document.getElementById('saveInputArea');
         const sequenceNameInput = document.getElementById('sequenceNameInput');
         
-        // Elements de Desa de Seqüència (ZIP)
+        // Elements de Desa
         const sequenceSaveOptions = document.getElementById('sequenceSaveOptions');
         const downloadAsZipCheckbox = document.getElementById('downloadAsZip');
         const downloadSequenceButton = document.getElementById('downloadSequenceButton');
         const downloadNote = document.getElementById('downloadNote');
-        
-        // REMOVIDO: NOUS elements de Desa de GIF
-        // const saveGifButton = document.getElementById('saveGifButton');
-        // const gifSaveOptions = document.getElementById('gifSaveOptions');
-        // const gifLoopCheckbox = document.getElementById('gifLoopCheckbox');
-        // const generateGifButton = document.getElementById('generateGifButton');
-
+        const gifLoopInput = document.getElementById('gifLoopInput');
+        const downloadGifButton = document.getElementById('downloadGifButton');
 
         // Elements de Video
         const openVideoButton = document.getElementById('openVideoDialogButton');
@@ -648,18 +670,18 @@
 
 
         // --- Funcions de Guardar (Sequence ONLY) ---
+        // --- Funcions de Guardar (Sequence i GIF) ---
         
         /**
-         * Funció per mostrar les opcions de desa (ara només de Seqüència).
-         * Mantenim el nom per compatibilitat amb el botó.
+         * Funció per mostrar les opcions de desa
          */
-        function showSaveOptions(mode) {
+        function showSaveOptions() {
             if (getEnabledFrames().length === 0) {
-                showMessage("Habilita almenys una imatge per desar.", true);
+                showMessage("Habiliteu almenys una imatge per desar.", true);
                 return;
             }
             
-            // Només mostrem les opcions de seqüència
+            // Mostrem les opcions de seqüència i GIF integrades
             sequenceSaveOptions.classList.remove('hidden');
             
             // Disparar l'esdeveniment change per actualitzar el text del botó de descàrrega de seqüència
@@ -717,7 +739,10 @@
                 return;
             }
 
-            const downloadGifButton = document.getElementById('generateGifButton');
+            // Lectura del camp de número (si està buit o <= 0, es converteix en 0 per bucle infinit)
+            const loopValue = parseInt(gifLoopInput.value, 10);
+            const numLoops = isNaN(loopValue) || loopValue <= 0 ? 0 : loopValue;
+
             downloadGifButton.disabled = true;
             downloadGifButton.textContent = "Generant...";
             showMessage(`S'està generant el GIF amb ${enabledFrames.length} fotogrames. Aquest procés es fa al vostre dispositiu i pot trigar una mica.`, false);
@@ -730,7 +755,7 @@
                 numFrames: framesForGif.length,
                 gifWidth: animationImage.naturalWidth || 640,
                 gifHeight: animationImage.naturalHeight || 480,
-                loop: gifLoopCheckbox.checked ? 0 : 1 // 0 = infinit, 1 = una vegada
+                loop: numLoops
             }, function(obj) {
                 if(!obj.error) {
                     downloadURI(obj.image, `${name}.gif`);
@@ -741,10 +766,10 @@
                     showMessage("Hi ha hagut un error en generar el GIF.", true);
                 }
                 downloadGifButton.disabled = false;
-                downloadGifButton.textContent = "Generar i Descarregar GIF";
+                downloadGifButton.textContent = "🖼️ Desar com a GIF animat";
             });
         }
-        
+
         // Gestió de la descàrrega de fitxers (Individual o ZIP)
         function saveSequenceFiles() {
             const sequenceName = sequenceNameInput.value.trim();
@@ -1518,7 +1543,7 @@
              downloadAsZipCheckbox.dispatchEvent(new Event('change')); // Actualitzar text
              
              // Assegurar que només es mostren les opcions de seqüència per defecte
-             sequenceSaveOptions.classList.remove('hidden'); // Lo hacemos visible
+             sequenceSaveOptions.classList.remove('hidden'); 
         });
     </script>
 </body>
