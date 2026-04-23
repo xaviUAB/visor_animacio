@@ -6,8 +6,10 @@
     <title>Creador d'animacions</title>
     <!-- Incloure Tailwind CSS des del CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Incloure JSZip per a la generació del fitxer ZIP -->
+    <!-- Incloure JSZip per a la generació del fitxer ZIP (per desar seqüència) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Incloure gifshot per a la generació de GIF animats -->
+    <script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/dist/gifshot.min.js"></script>
     <style>
         /* Configuració del tema Tailwind i la font Inter */
         tailwind.config = {
@@ -152,28 +154,28 @@
         <h1 class="text-3xl font-extrabold text-indigo-700 mb-2">Creador d'animacions</h1>
         <p class="text-gray-600 mb-6">Selecciona una seqüència d'imatges per veure-les, reordenar-les i desar-les.</p>
         
-        <!-- CONTENIDOR DE BOTONS -->
+        <!-- CONTENIDOR DE BOTONS DE CÀRREGA -->
         <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4 mx-auto mb-8">
             <!-- Botó Seleccionar Imatges -->
             <button id="openDialogButton" 
-                    class="upload-button bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+                    class="upload-button bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 uppercase">
                 <!-- Icona d'upload (usant SVG) -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M5.5 13a.5.5 0 01.5-.5h2a.5.5 0 010 1H6a.5.5 0 01-.5-.5z" />
-                    <path fill-rule="evenodd" d="M15 13V5a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2zM4.5 13V5c0-.36.2-.67.48-.79l.06-.02h9.92c.28.12.48.43.48.79v8c0 .36-.2.67-.48.79l-.06.02H4.5z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M15 13V5a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2zM4.5 13V5c0-.36.2-.67.48-.79l.06-.02h9.92c.28.12.48.43.48.79v8c0 .36-.2.67-.48.79l-.06-.02H4.5z" clip-rule="evenodd" />
                 </svg>
-                Seleccionar Imatges
+                SELECCIONAR IMATGES
             </button>
 
             <!-- Botó Importar Vídeo -->
             <button id="openVideoDialogButton" 
-                    class="upload-button bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50">
+                    class="upload-button bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 uppercase">
                 <!-- Icona de vídeo (usant SVG) -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm.5 13a.5.5 0 010-1h11a.5.5 0 010 1h-11zM10 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1h-4z"/>
                     <path d="M10 9.5a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-3z"/>
                 </svg>
-                Importar Vídeo
+                IMPORTAR VÍDEO
             </button>
         </div>
 
@@ -191,8 +193,8 @@
                     <p id="imageFileName" class="hidden mt-2 text-sm font-semibold text-gray-700 truncate w-full px-2 text-center">Nom del Fitxer: </p>
                 </div>
 
-                <!-- Control de Reproducció, Manuals i Botó de Guardar -->
-                <div id="playbackControls" class="mt-4 flex justify-center items-center space-x-4 w-full">
+                <!-- Control de Reproducció, Manuals i Botons de Guardar (Flex-wrap per a mòbil) -->
+                <div id="playbackControls" class="mt-4 flex flex-wrap justify-center items-center space-x-2 space-y-2 sm:space-y-0 w-full">
                     
                     <!-- Botó Anterior -->
                     <button id="prevButton" onclick="manualNavigate(-1)" disabled
@@ -213,40 +215,46 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
                     </button>
 
-                    <!-- Botó de Guardar Seqüència -->
-                    <button id="saveSequenceButton" onclick="showSaveInput()"
+                    <!-- Botó de Guardar Seqüència (Ahora es el único botón de guardar) -->
+                    <button id="saveSequenceButton" onclick="showSaveOptions('sequence')"
                             class="ml-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition duration-150">
                         💾 Guardar Seqüència
                     </button>
+                    
                 </div>
 
                 <!-- Àrea de Guardar (Inicialment oculta) -->
                 <div id="saveInputArea" class="mt-4 p-4 bg-yellow-100 rounded-xl w-full max-w-lg hidden">
                     <label for="sequenceNameInput" class="block text-sm font-medium text-gray-800 mb-2 text-left">
-                        Nom de la seqüència (Utilitzat com a prefix per als fitxers):
+                        Nom base per a la descàrrega:
                     </label>
                     <input type="text" id="sequenceNameInput" placeholder="Ex: Projecte_Animat"
                            class="w-full px-3 py-2 border border-yellow-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-3 text-sm">
-                    
-                    <!-- Checkbox per descarregar en ZIP -->
-                    <div class="flex items-center mb-3">
-                        <input id="downloadAsZip" type="checkbox"
-                               class="form-checkbox h-4 w-4 text-yellow-600 transition duration-150 ease-in-out border-gray-300 rounded focus:ring-yellow-500">
-                        <label for="downloadAsZip" class="ml-2 block text-sm text-gray-800 font-semibold">
-                            Descarregar tota la seqüència en un sol fitxer ZIP
-                        </label>
+
+                    <!-- Opcions de DESA COM A SEQÜÈNCIA (IMG) -->
+                    <div id="sequenceSaveOptions" class="space-y-3"> <!-- Hacemos visible por defecto -->
+                        <h4 class="text-md font-bold text-gray-800 mb-2 text-left">Opcions de Seqüència d'Imatges</h4>
+                        <div class="flex items-center">
+                            <input id="downloadAsZip" type="checkbox"
+                                   class="form-checkbox h-4 w-4 text-yellow-600 transition duration-150 ease-in-out border-gray-300 rounded focus:ring-yellow-500">
+                            <label for="downloadAsZip" class="ml-2 block text-sm text-gray-800 font-semibold">
+                                Descarregar tota la seqüència en un sol fitxer ZIP
+                            </label>
+                        </div>
+                        <button onclick="saveSequenceFiles()"
+                                class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-xl hover:bg-yellow-700 transition duration-150"
+                                id="downloadSequenceButton">
+                            Confirmar i Descarregar Imatges
+                        </button>
+                        <p id="downloadNote" class="mt-2 text-xs text-yellow-800 text-left">
+                            **Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).
+                        </p>
                     </div>
 
-                    <button onclick="saveSequenceFiles()"
-                            class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-xl hover:bg-yellow-700 transition duration-150"
-                            id="downloadButton">
-                        Confirmar i Descarregar Imatges
-                    </button>
-                    <p id="downloadNote" class="mt-2 text-xs text-yellow-800 text-left">
-                        **Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).
-                    </p>
+                    <!-- REMOVIDO: Opcions de DESA COM A GIF ANIAMAT -->
+                    
                     <button onclick="hideSaveInput()"
-                            class="mt-2 w-full px-4 py-2 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-xl hover:bg-yellow-300 transition duration-150">
+                            class="mt-4 w-full px-4 py-2 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-xl hover:bg-yellow-300 transition duration-150">
                         Cancel·lar
                     </button>
                 </div>
@@ -452,6 +460,12 @@
         let imageIndex = 0; // Index de la imatge actual DINS de l'array d'imatges HABILITADES (filtrat)
         let animationSpeed = 500; // Velocitat inicial (500ms per frame)
         let dragSrcEl = null; 
+        
+        // REMOVIDO: Codi del Worker GIF (ya no se utiliza)
+        const GIF_WORKER_CODE = ''; 
+        const workerBlob = new Blob([GIF_WORKER_CODE], { type: 'application/javascript' });
+        const workerBlobUrl = URL.createObjectURL(workerBlob);
+
 
         // Referències als elements del DOM
         const openButton = document.getElementById('openDialogButton');
@@ -473,9 +487,19 @@
         const nextButton = document.getElementById('nextButton');
         const saveInputArea = document.getElementById('saveInputArea');
         const sequenceNameInput = document.getElementById('sequenceNameInput');
+        
+        // Elements de Desa de Seqüència (ZIP)
+        const sequenceSaveOptions = document.getElementById('sequenceSaveOptions');
         const downloadAsZipCheckbox = document.getElementById('downloadAsZip');
-        const downloadButton = document.getElementById('downloadButton');
+        const downloadSequenceButton = document.getElementById('downloadSequenceButton');
         const downloadNote = document.getElementById('downloadNote');
+        
+        // REMOVIDO: NOUS elements de Desa de GIF
+        // const saveGifButton = document.getElementById('saveGifButton');
+        // const gifSaveOptions = document.getElementById('gifSaveOptions');
+        // const gifLoopCheckbox = document.getElementById('gifLoopCheckbox');
+        // const generateGifButton = document.getElementById('generateGifButton');
+
 
         // Elements de Video
         const openVideoButton = document.getElementById('openVideoDialogButton');
@@ -623,7 +647,27 @@
         }
 
 
-        // --- Funcions de Guardar (ZIP) ---
+        // --- Funcions de Guardar (Sequence ONLY) ---
+        
+        /**
+         * Funció per mostrar les opcions de desa (ara només de Seqüència).
+         * Mantenim el nom per compatibilitat amb el botó.
+         */
+        function showSaveOptions(mode) {
+            if (getEnabledFrames().length === 0) {
+                showMessage("Habilita almenys una imatge per desar.", true);
+                return;
+            }
+            
+            // Només mostrem les opcions de seqüència
+            sequenceSaveOptions.classList.remove('hidden');
+            
+            // Disparar l'esdeveniment change per actualitzar el text del botó de descàrrega de seqüència
+            downloadAsZipCheckbox.dispatchEvent(new Event('change')); 
+            
+            saveInputArea.classList.remove('hidden');
+            sequenceNameInput.focus();
+        }
 
         // Helper per descarregar un Data URL o Blob URL
         function downloadURI(uri, name) {
@@ -641,28 +685,64 @@
         downloadAsZipCheckbox.addEventListener('change', () => {
             const isZip = downloadAsZipCheckbox.checked;
             if (isZip) {
-                downloadButton.textContent = 'Confirmar i Descarregar ZIP';
+                downloadSequenceButton.textContent = 'Confirmar i Descarregar ZIP';
                 downloadNote.innerHTML = `**Nota important:** La generació del fitxer ZIP pot trigar uns segons per a seqüències molt grans.`;
             } else {
-                downloadButton.textContent = 'Confirmar i Descarregar Imatges (Automàticament)';
+                downloadSequenceButton.textContent = 'Confirmar i Descarregar Imatges (Automàticament)';
                 downloadNote.innerHTML = `**Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).`;
             }
         });
 
 
-        // Mostra l'àrea d'introducció del nom de la seqüència
-        function showSaveInput() {
-            if (getEnabledFrames().length === 0) {
-                 showMessage("Habilita almenys una imatge per desar la seqüència.", true);
-                 return;
-            }
-            saveInputArea.classList.remove('hidden');
-            sequenceNameInput.focus();
-        }
-
         // Amaga l'àrea d'introducció del nom de la seqüència
         function hideSaveInput() {
             saveInputArea.classList.add('hidden');
+            // Netejar la caixa de missatges principal
+            messageBox.classList.add('hidden');
+        }
+        
+        async function processAndSaveGif() {
+            if (typeof gifshot === 'undefined') {
+                showMessage("Error: La llibreria per crear GIF encara no s'ha carregat. Si us plau, torneu-ho a provar en uns instants.", true);
+                return;
+            }
+
+            const sequenceName = sequenceNameInput.value.trim();
+            const name = sequenceName ? sequenceName.replace(/[^a-zA-Z0-9_\-]/g, '_') : 'animacio';
+            const enabledFrames = getEnabledFrames();
+            
+            if (enabledFrames.length === 0) {
+                showMessage("No hi ha fotogrames habilitats per crear el GIF.", true);
+                hideSaveInput();
+                return;
+            }
+
+            const downloadGifButton = document.getElementById('generateGifButton');
+            downloadGifButton.disabled = true;
+            downloadGifButton.textContent = "Generant...";
+            showMessage(`S'està generant el GIF amb ${enabledFrames.length} fotogrames. Aquest procés es fa al vostre dispositiu i pot trigar una mica.`, false);
+            
+            const framesForGif = enabledFrames.map(f => f.url);
+            
+            gifshot.createGIF({
+                images: framesForGif,
+                interval: animationSpeed / 1000, // gifshot utilitza segons
+                numFrames: framesForGif.length,
+                gifWidth: animationImage.naturalWidth || 640,
+                gifHeight: animationImage.naturalHeight || 480,
+                loop: gifLoopCheckbox.checked ? 0 : 1 // 0 = infinit, 1 = una vegada
+            }, function(obj) {
+                if(!obj.error) {
+                    downloadURI(obj.image, `${name}.gif`);
+                    hideSaveInput();
+                    showMessage("El GIF s'ha generat amb èxit!");
+                } else {
+                    console.error("Error gifshot:", obj.error);
+                    showMessage("Hi ha hagut un error en generar el GIF.", true);
+                }
+                downloadGifButton.disabled = false;
+                downloadGifButton.textContent = "Generar i Descarregar GIF";
+            });
         }
         
         // Gestió de la descàrrega de fitxers (Individual o ZIP)
@@ -706,8 +786,8 @@
 
             if (downloadAsZip) {
                 // --- DESCARREGA EN ZIP ---
-                downloadButton.disabled = true;
-                downloadButton.textContent = 'Generant ZIP... (Espera)';
+                downloadSequenceButton.disabled = true;
+                downloadSequenceButton.textContent = 'Generant ZIP... (Espera)';
                 
                 showMessage(`Començant la generació del fitxer ZIP amb ${filesToSave.length} imatges.`, false);
 
@@ -736,8 +816,8 @@
                     showMessage(`Error generant el ZIP: ${err.message}`, true);
                 })
                 .finally(() => {
-                    downloadButton.disabled = false;
-                    downloadButton.textContent = 'Confirmar i Descarregar ZIP';
+                    downloadSequenceButton.disabled = false;
+                    downloadSequenceButton.textContent = 'Confirmar i Descarregar ZIP';
                 });
 
             } else {
@@ -746,7 +826,7 @@
                 let downloadCount = 0;
                 const delay = 1000; // Retard d'1 segon 
                 
-                downloadButton.disabled = true;
+                downloadSequenceButton.disabled = true;
                 
                 showMessage(`Preparant la descàrrega automàtica de ${filesToSave.length} fitxers amb un retard d'${delay}ms entre ells...`, false);
 
@@ -759,12 +839,14 @@
                         if (downloadCount === filesToSave.length) {
                             showMessage(`S'han finalitzat les descàrregues de ${downloadCount} imatges amb el nom base "${sanitizedName}".`, false);
                             hideSaveInput();
-                            downloadButton.disabled = false;
+                            downloadSequenceButton.disabled = false;
                         }
                     }, index * delay); // Retard creixent
                 });
             }
         }
+        
+        // REMOVIDO: Funció saveAsGif() (ya no se usa)
 
 
         // --- Lògica de l'Animació ---
@@ -799,9 +881,6 @@
                 const currentElement = document.querySelector(`.list-item[data-index='${globalIndex}']`);
                 if (currentElement) {
                     currentElement.classList.add('is-current');
-                    
-                    // ELIMINAT (MODIFICACIÓ 2): Scroll automàtic eliminat
-                    // currentElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
             }
         }
@@ -1125,7 +1204,7 @@
                     handleCheckboxChange(index, this);
                 });
                 
-                // Quan es clica sobre el nom (label), es mostra el frame si no està en animació
+                // Quand se clica sobre el nom (label), es mostra el frame si no està en animació
                 li.querySelector('label').addEventListener('click', (e) => {
                     // No fem res si l'animació està activa
                     if (animationInterval) {
@@ -1436,8 +1515,10 @@
              
              // Establir l'estat inicial de la nota de descàrrega
              downloadAsZipCheckbox.checked = false; // Assegurem que està desmarcat inicialment
-             downloadButton.textContent = 'Confirmar i Descarregar Imatges (Automàticament)';
-             downloadNote.innerHTML = `**Nota important:** Si descarregueu fitxers individuals, pot ser que se us demani permís per a la descàrrega de múltiples fitxers (amb retard d'1 segon entre ells).`;
+             downloadAsZipCheckbox.dispatchEvent(new Event('change')); // Actualitzar text
+             
+             // Assegurar que només es mostren les opcions de seqüència per defecte
+             sequenceSaveOptions.classList.remove('hidden'); // Lo hacemos visible
         });
     </script>
 </body>
